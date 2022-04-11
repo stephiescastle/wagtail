@@ -51,6 +51,8 @@ from wagtail.test.testapp.models import (
     MyCustomPage,
     OneToOnePage,
     PageWithExcludedCopyField,
+    PageWithGenericRelation,
+    RelatedGenericRelation,
     SimpleChildPage,
     SimplePage,
     SimpleParentPage,
@@ -1373,7 +1375,8 @@ class TestCopyPage(TestCase):
 
         # Check that comments were NOT copied over
         self.assertFalse(
-            new_christmas_event.wagtail_admin_comments.exists(), "Comments were copied"
+            new_christmas_event.wagtail_admin_comments.exists(),
+            msg="Comments were copied",
         )
 
     def test_copy_page_does_not_copy_child_objects_if_accessor_name_in_exclude_fields(
@@ -1406,7 +1409,7 @@ class TestCopyPage(TestCase):
         # Check that advert placements were NOT copied over, but were not removed from the old page
         self.assertFalse(
             new_christmas_event.advert_placements.exists(),
-            "Child objects were copied despite accessor_name being specified in `exclude_fields`",
+            msg="Child objects were copied despite accessor_name being specified in `exclude_fields`",
         )
         self.assertEqual(
             christmas_event.advert_placements.count(),
@@ -1505,7 +1508,7 @@ class TestCopyPage(TestCase):
         }
         self.assertFalse(
             old_speakers_ids.intersection(new_speakers_ids),
-            "Child objects in revisions were not given a new primary key",
+            msg="Child objects in revisions were not given a new primary key",
         )
 
     def test_copy_page_copies_revisions_and_doesnt_submit_for_moderation(self):
@@ -1969,6 +1972,26 @@ class TestCopyPage(TestCase):
         # special_field is in the list to be excluded
         self.assertNotEqual(page.special_field, new_page.special_field)
 
+    def test_page_with_generic_relation(self):
+        """Test that a page with a GenericRelation will have that relation ignored when
+        copying.
+        """
+        homepage = Page.objects.get(url_path="/home/")
+        original_page = homepage.add_child(
+            instance=PageWithGenericRelation(
+                title="PageWithGenericRelation",
+                slug="page-with-generic-relation",
+                live=True,
+                has_unpublished_changes=False,
+            )
+        )
+        RelatedGenericRelation.objects.create(content_object=original_page)
+        self.assertIsNotNone(original_page.generic_relation.first())
+        page_copy = original_page.copy(
+            to=homepage, update_attrs={"slug": f"{original_page.slug}-2"}
+        )
+        self.assertIsNone(page_copy.generic_relation.first())
+
     def test_copy_page_with_excluded_parental_and_child_relations(self):
         """Test that a page will be copied with parental and child relations removed if excluded."""
 
@@ -2043,6 +2066,34 @@ class TestCopyPage(TestCase):
         new_page = SimplePage(slug="testpurp", title="testpurpose")
         with self.assertRaises(RuntimeError):
             new_page.copy()
+
+    def test_copy_page_with_unique_uuids_in_orderables(self):
+        """
+        Test that a page with orderables can be copied and the translation
+        keys are updated.
+        """
+        christmas_page = EventPage.objects.get(url_path="/home/events/christmas/")
+        christmas_page.speakers.add(
+            EventPageSpeaker(
+                first_name="Santa",
+                last_name="Claus",
+            )
+        )
+        christmas_page.save()
+        # ensure there's a revision (which should capture the new speaker orderables)
+        christmas_page.save_revision().publish()
+
+        new_page = christmas_page.copy(
+            update_attrs={
+                "title": "Orderable Page",
+                "slug": "translated-orderable-page",
+            },
+        )
+        new_page.save_revision().publish()
+        self.assertNotEqual(
+            christmas_page.speakers.first().translation_key,
+            new_page.speakers.first().translation_key,
+        )
 
     def test_copy_published_emits_signal(self):
         """Test that copying of a published page emits a page_published signal."""

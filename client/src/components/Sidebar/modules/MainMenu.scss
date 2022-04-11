@@ -2,7 +2,9 @@
 .sidebar-main-menu {
   overflow: auto;
   overflow-x: hidden;
-  margin-bottom: 60px;
+  // So the last items in the menu will be seen when the menu is vertically scrollable
+  margin-bottom: 52px;
+
   @include transition(margin-bottom $menu-transition-duration ease);
 
   &--open-footer {
@@ -17,14 +19,6 @@
 
   *:focus {
     @include show-focus-outline-inside;
-  }
-
-  .icon--menuitem {
-    width: 1.25em;
-    height: 1.25em;
-    min-width: 1.25em;
-    margin-inline-end: 0.5em;
-    vertical-align: text-top;
   }
 
   .icon--submenu-header {
@@ -84,6 +78,8 @@
   }
 
   &__account {
+    @include show-focus-outline-inside();
+
     &-toggle {
       @apply w-pl-2 w-inline-flex w-justify-between w-w-full w-translate-x-0 w-transition w-duration-150;
     }
@@ -109,7 +105,8 @@
     width: $menu-width !important; // Override collapsed style
 
     > ul {
-      max-height: $nav-footer-submenu-height;
+      $footer-submenu-height: 85px;
+      max-height: $footer-submenu-height;
       visibility: visible;
     }
   }
